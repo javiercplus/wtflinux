@@ -30,12 +30,15 @@ err()  { printf "${C_RED}[x]${C_RST} %s\n" "$*" >&2; }
 die()  { err "$*"; exit 1; }
 
 # ─────────────────────────── Rutas base ────────────────────────────
+# Respetamos el valor del entorno (inyectado por GHA via env: del job);
+# solo usamos defaults si no están definidos.
 : "${ROOTFS:=/rootfs}"
 : "${WORKDIR:=$(pwd)}"
 : "${ISODIR:=${WORKDIR}/isowork}"
 : "${OUTDIR:=${WORKDIR}/out}"
 : "${PKGMGR:=pacman}"
 : "${INIT:=systemd}"
+export ROOTFS WORKDIR ISODIR OUTDIR PKGMGR INIT
 
 # ─────────────────────────────── chroot ───────────────────────────
 # Prepara un chroot seguro con /proc /sys /dev /run montados

@@ -65,24 +65,43 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ${{ matrix.container }}
-      options: --privileged
+      # --privileged: necesario para mount, chroot y mknod dentro del container
+      # --network=host: evita problemas de DNS a internet (pacman/xbps
+      #   necesitan bajar paquetes desde el host runner).
+      options: --privileged --network=host
+
+    # Variables disponibles en TODOS los steps del job (incluido el actual).
+    # Usamos /wtflinux (path absoluto y predecible dentro del container) en
+    # vez de $GITHUB_WORKSPACE porque algunos containers montan el workspace
+    # en /github/workspace y otros en /__w/...; /wtflinux siempre existe.
+    env:
+      PKGMGR: ${{ matrix.pkgmgr }}
+      INIT: ${{ matrix.init }}
+      HF_PREFIX: ${{ matrix.hf_prefix }}
+      WORKDIR: /wtflinux
+      ROOTFS: /wtflinux/rootfs
+      ISODIR: /wtflinux/isowork
+      OUTDIR: /wtflinux/out
+      BUILD_DATE: ${{ github.run_id }}
 
     steps:
       - name: 1. Checkout
         uses: actions/checkout@v4
 
-      - name: 2. Exponer variables de entorno
+      - name: 2. Crear directorios de trabajo
         run: |
-          {
-            echo "PKGMGR=${{ matrix.pkgmgr }}"
-            echo "INIT=${{ matrix.init }}"
-            echo "HF_PREFIX=${{ matrix.hf_prefix }}"
-            echo "ROOTFS=$GITHUB_WORKSPACE/rootfs"
-            echo "ISODIR=$GITHUB_WORKSPACE/isowork"
-            echo "OUTDIR=$GITHUB_WORKSPACE/out"
-            echo "WORKDIR=$GITHUB_WORKSPACE"
-          } >> "$GITHUB_ENV"
+          set -eux
+          mkdir -p /wtflinux
+          echo "PKGMGR=$PKGMGR"
+          echo "INIT=$INIT"
+          echo "WORKDIR=$WORKDIR"
+          echo "ROOTFS=$ROOTFS"
+          echo "ISODIR=$ISODIR"
+          echo "OUTDIR=$OUTDIR"
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
           mkdir -p "$ROOTFS" "$ISODIR" "$OUTDIR"
+          ls -la /wtflinux
+          df -h /wtflinux || true
 
       # ─────────────────────────── PACMAN ────────────────────────────
       - name: 3a. Bootstrap pacman (Arch) rootfs
@@ -165,7 +184,14 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           DESKTOP: ${{ matrix.pkgmgr }}
         run: |
-          pip install -q --break-system-packages huggingface_hub || pip install -q huggingface_hub
+          # huggingface_hub para el CLI `hf`
+          if command -v pip >/dev/null 2>&1; then
+            pip install -q --break-system-packages huggingface_hub 2>/dev/null \
+              || pip install -q huggingface_hub
+          else
+            python3 -m pip install -q --break-system-packages huggingface_hub 2>/dev/null \
+              || python3 -m pip install -q huggingface_hub
+          fi
 
           ISO_FILE="$ISO_PATH"
           ISO_NAME="$ISO_NAME"
@@ -177,11 +203,11 @@ jobs:
             *)      HF_NAME="$ISO_NAME" ;;
           esac
 
-          echo "Subiendo $ISO_FILE  →  arepaconcafe/wtflinux/$HF_NAME"
+          echo "Subiendo $ISO_FILE  →  ${HF_REPO}/${HF_NAME}"
           hf upload "$HF_REPO" "$ISO_FILE" "$HF_NAME" \
             --repo-type dataset --token "$HF_TOKEN"
 
-          echo "Subiendo $SHA_FILE  →  arepaconcafe/wtflinux/${ISO_NAME}-sha256.txt"
+          echo "Subiendo $SHA_FILE  →  ${HF_REPO}/${ISO_NAME}-sha256.txt"
           hf upload "$HF_REPO" "$SHA_FILE" "${ISO_NAME}-sha256.txt" \
             --repo-type dataset --token "$HF_TOKEN"
 
