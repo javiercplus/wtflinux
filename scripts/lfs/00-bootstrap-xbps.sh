@@ -48,8 +48,6 @@ pkgs=(
   base-system
   base-devel
   linux-firmware
-  intel-ucode
-  amd-ucode
   nano
   grub
   "$GRUB_EFI_PKG"
@@ -58,14 +56,12 @@ pkgs=(
   dhclient
   wpa_supplicant
   iwd
-  # i3 group expanded: i3-wm i3blocks i3lock i3status
-  i3-wm
+  i3
   i3blocks
   i3lock
   i3status
   dmenu
   xorg
-  xorg-input-drivers
   lightdm
   lightdm-gtk-greeter
   htop
@@ -94,7 +90,6 @@ pkgs=(
   mtools
   dosfstools
   runit-void
-  void-runit
 )
 
 # xbps-install -S: sincroniza índices de repositorios (necesario antes de -y).
