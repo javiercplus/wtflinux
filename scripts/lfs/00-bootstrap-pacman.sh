@@ -37,27 +37,64 @@ fi
 ensure_dir "$ROOTFS"
 
 log "Ejecutando pacstrap base + paquetes del sistema"
-# Lista base que necesita el instalador después
+# Lista final de paquetes (sin grupos como `i3` que piden input interactivo
+# y sin paquetes void-specific que rompen en Arch).
 pkgs=(
-  base base-devel linux-firmware intel-ucode amd-ucode
-  nano grub efibootmgr os-prober
-  networkmanager dhclient wpa_supplicant iwd
-  i3 dmenu xorg-server xorg-xinit lightdm lightdm-gtk-greeter
-  htop btop ncdu ripgrep fd fastfetch
-  git curl wget rsync tar xz gzip zstd lz4 unzip
-  bash bash-completion sudo openssh
-  dracut squashfs-tools xorriso mtools dosfstools
-  runit runit-services void-linux-repo void-runit
+  base
+  base-devel
+  linux-firmware
+  intel-ucode
+  amd-ucode
+  nano
+  grub
+  efibootmgr
+  os-prober
+  networkmanager
+  dhclient
+  wpa_supplicant
+  iwd
+  # i3 group expanded: i3-wm i3blocks i3lock i3status
+  i3-wm
+  i3blocks
+  i3lock
+  i3status
+  dmenu
+  xorg-server
+  xorg-xinit
+  lightdm
+  lightdm-gtk-greeter
+  htop
+  btop
+  ncdu
+  ripgrep
+  fd
+  fastfetch
+  git
+  curl
+  wget
+  rsync
+  tar
+  xz
+  gzip
+  zstd
+  lz4
+  unzip
+  bash
+  bash-completion
+  sudo
+  openssh
+  dracut
+  squashfs-tools
+  xorriso
+  mtools
+  dosfstools
 )
 
-# void-runit no existe en Arch; lo quitamos si está (lo dejamos por seguridad
-# de no romper al usuario que quiera usar runit encima)
-pkgs=("${pkgs[@]/void-linux-repo/}")
-pkgs=("${pkgs[@]/void-runit/}")
-pkgs=("${pkgs[@]/runit-services/}")
-pkgs=("${pkgs[@]/runit/}")
-
-pacstrap -K -M -c "$ROOTFS" "${pkgs[@]}" 2>&1 | tail -n 80
+# pacstrap -K: inicializa keyring, -M: no copia mirrorlist del host,
+# -c: usa cache del host (más rápido), --needed: ignora paquetes ya instalados.
+# Pasamos < /dev/null para que pacstrap no espere input interactivo en
+# grupos (no hay grupos ahora, pero por si acaso).
+pacstrap -K -M -c --needed "$ROOTFS" "${pkgs[@]}" < /dev/null 2>&1 | tail -n 80
 
 # 5. Generar fstab mínimo (no es root real, es squashfs; pero algo hay que poner)
 cat > "$ROOTFS/etc/fstab" <<'EOF'

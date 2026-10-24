@@ -43,24 +43,65 @@ EOF
 
 # 3. Bootstrap: instalación base
 log "xbps-install -S -R $REPO -r $ROOTFS base-system + paquetes"
+# Lista final de paquetes (sin grupos como `i3` que piden input interactivo).
 pkgs=(
-  base-system base-devel
-  linux-firmware intel-ucode amd-ucode
-  nano grub "$GRUB_EFI_PKG" efibootmgr
-  NetworkManager dhclient wpa_supplicant iwd
-  i3 dmenu xorg xorg-input-drivers lightdm lightdm-gtk-greeter
-  htop btop ncdu ripgrep fd fastfetch
-  git curl wget rsync tar xz gzip zstd lz4 unzip
-  bash bash-completion sudo openssh
-  dracut squashfs-tools xorriso mtools dosfstools
-  runit-void void-runit
+  base-system
+  base-devel
+  linux-firmware
+  intel-ucode
+  amd-ucode
+  nano
+  grub
+  "$GRUB_EFI_PKG"
+  efibootmgr
+  NetworkManager
+  dhclient
+  wpa_supplicant
+  iwd
+  # i3 group expanded: i3-wm i3blocks i3lock i3status
+  i3-wm
+  i3blocks
+  i3lock
+  i3status
+  dmenu
+  xorg
+  xorg-input-drivers
+  lightdm
+  lightdm-gtk-greeter
+  htop
+  btop
+  ncdu
+  ripgrep
+  fd
+  fastfetch
+  git
+  curl
+  wget
+  rsync
+  tar
+  xz
+  gzip
+  zstd
+  lz4
+  unzip
+  bash
+  bash-completion
+  sudo
+  openssh
+  dracut
+  squashfs-tools
+  xorriso
+  mtools
+  dosfstools
+  runit-void
+  void-runit
 )
 
-# Si las keys siguen vacías, xbps-install las descargará automáticamente
-# en el primer `-S`.
-xbps-install -S -R "$REPO" -r "$ROOTFS" -y "${pkgs[@]}" 2>&1 | tail -n 80 || {
+# xbps-install -S: sincroniza índices de repositorios (necesario antes de -y).
+# Pasamos < /dev/null para evitar cualquier prompt interactivo.
+xbps-install -S -R "$REPO" -r "$ROOTFS" -y "${pkgs[@]}" < /dev/null 2>&1 | tail -n 80 || {
   err "xbps-install falló. Reintentando con -f (force)…"
-  xbps-install -S -R "$REPO" -r "$ROOTFS" -yf "${pkgs[@]}"
+  xbps-install -S -R "$REPO" -r "$ROOTFS" -yf "${pkgs[@]}" < /dev/null
 }
 
 # 4. fstab mínimo

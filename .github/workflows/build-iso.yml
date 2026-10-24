@@ -91,6 +91,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 2. Crear directorios de trabajo
+        # Usamos sh porque el container Void no tiene bash todavía en este punto.
+        # En Arch container sh también funciona.
+        shell: sh
         run: |
           set -eux
           mkdir -p /wtflinux
@@ -119,11 +122,40 @@ jobs:
           echo ""
           getent hosts repo-de.voidlinux.org 2>&1 | head -1 \
             || getent hosts geo.mirror.pkgbuild.com 2>&1 | head -1 \
-            || warn "DNS no resuelve — revisa /etc/resolv.conf"
+            || echo "[!] DNS no resuelve — revisa /etc/resolv.conf"
 
           mkdir -p "$ROOTFS" "$ISODIR" "$OUTDIR"
           ls -la /wtflinux
           df -h /wtflinux || true
+
+      # ──────────────── PRE-BOOTSTRAP (instalar bash si falta) ────────────────
+      # El container `ghcr.io/void-linux/void-glibc-full:latest` NO trae bash
+      # por defecto, y todos nuestros scripts usan `#!/usr/bin/env bash` con
+      # features de bash (arrays, ${arr[@]/pat/}, BASH_SOURCE, mapfile, etc.).
+      # Sin este step, el primer `bash scripts/lfs/...sh` falla con
+      # `bash: not found` (exit 127).
+      - name: 2b. Asegurar bash disponible (Void container)
+        if: matrix.pkgmgr == 'xbps'
+        shell: sh
+        run: |
+          set -eux
+
+          if command -v bash >/dev/null 2>&1; then
+            echo "bash ya está disponible:"
+            bash --version | head -1
+            exit 0
+          fi
+
+          echo "bash no encontrado; instalando via xbps-install (con sh)…"
+
+          # Actualizar xbps primero (recomendado en Void)
+          xbps-install -Syu xbps || true
+
+          # Instalar bash
+          xbps-install -Sy bash
+
+          echo "bash instalado:"
+          bash --version | head -1
 
       # ─────────────────────────── PACMAN ────────────────────────────
       - name: 3a. Bootstrap pacman (Arch) rootfs
