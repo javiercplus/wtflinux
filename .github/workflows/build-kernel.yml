@@ -1,0 +1,249 @@
+# Compila el kernel Cachy (rama master de CachyOS/linux-cachyos) y lo publica
+# como un release del propio repositorio. El workflow build-iso.yml luego
+# descarga este tarball para meterlo dentro de la ISO de WtfLinux.
+#
+# Build host: contenedor void-glibc-full (mismo que usabas en tus ejemplos).
+# Salida: wtflinux-cachy-kernel-<KVER>.tar.gz + kernel-release.txt publicados
+# en una release con tag `kernel-<KVER>`.
+
+name: Compile WtfLinux Cachy Kernel
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernel_ref:
+        description: 'Git ref (rama o tag) de CachyOS/linux-cachyos a compilar'
+        required: false
+        default: 'master'
+      jobs_override:
+        description: 'Forzar -jN (0 = auto). Útil para runners pequeños.'
+        required: false
+        default: '0'
+
+permissions:
+  actions: read
+  contents: write
+
+env:
+  KERNEL_REF: ${{ github.event.inputs.kernel_ref || 'master' }}
+
+jobs:
+  build-kernel:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/void-linux/void-glibc-full:latest
+      options: --user root
+
+    steps:
+      - name: 1. Instalar dependencias del sistema
+        run: |
+          xbps-install -Syu --repository=https://repo-de.voidlinux.org/current/ xbps
+          xbps-install -Syu --repository=https://repo-de.voidlinux.org/current/ \
+            base-devel git bc kmod elfutils-devel bash cpio xz lz4 zstd \
+            flex bison openssl-devel curl pahole tar python3 patch wget rsync -y
+
+      - name: 2. Checkout del repositorio
+        uses: actions/checkout@v4
+        with:
+          path: repo
+
+      - name: 3. Clonar fuentes del kernel CachyOS
+        run: |
+          git clone --depth 1 --branch "${KERNEL_REF}" \
+            https://github.com/CachyOS/linux-cachyos.git linux-src
+          cd linux-src
+          # CachyOS ya deja EXTRAVERSION = -cachy en el Makefile; lo
+          # forzamos para que el kernelrelease sea determinista.
+          sed -i 's/^EXTRAVERSION =.*/EXTRAVERSION = -cachy/' Makefile
+          cd ..
+
+      - name: 4. Aplicar config de CachyOS
+        run: |
+          cd linux-src
+          # El repo de CachyOS trae linux-cachyos/config como dotconfig base
+          if [ -f linux-cachyos/config ]; then
+            cp linux-cachyos/config .config
+          elif [ -f .config.cachyos ]; then
+            cp .config.cachyos .config
+          else
+            echo "ERROR: no se encontró el .config base de CachyOS" >&2
+            exit 1
+          fi
+          cd ..
+
+      - name: 5. Aplicar parche de Void (fixdep-largefile)
+        run: |
+          cd linux-src
+          wget -O fixdep-largefile.patch \
+            https://github.com/void-linux/void-packages/raw/refs/heads/master/srcpkgs/linux7.2/patches/fixdep-largefile.patch
+          patch -p1 -N --batch < fixdep-largefile.patch || true
+          cd ..
+
+      - name: 6. Ajustes de configuración WtfLinux
+        run: |
+          cd linux-src
+          # Identidad del kernel
+          scripts/config --set-str  CONFIG_LOCALVERSION "-cachy"
+          scripts/config --disable  CONFIG_LOCALVERSION_AUTO
+
+          # Scheduler / preempt / Hz
+          scripts/config -d CONFIG_PREEMPT_NONE
+          scripts/config -d CONFIG_PREEMPT_VOLUNTARY
+          scripts/config -d CONFIG_PREEMPT_LL
+          scripts/config -e CONFIG_PREEMPT
+          scripts/config -e CONFIG_PREEMPT_DYNAMIC
+          scripts/config -d CONFIG_HZ_300 -e CONFIG_HZ_1000 --set-val CONFIG_HZ 1000
+          scripts/config -d CONFIG_HZ_PERIODIC
+          scripts/config -e CONFIG_NO_HZ_FULL
+          scripts/config -e CONFIG_NO_HZ
+
+          # Memoria / THP / I/O
+          scripts/config -d CONFIG_TRANSPARENT_HUGEPAGE_MADVISE
+          scripts/config -e CONFIG_TRANSPARENT_HUGEPAGE_ALWAYS
+          scripts/config -e CONFIG_MODULE_COMPRESS_ZSTD
+          scripts/config --set-str CONFIG_DEFAULT_IOSCHED "mq-deadline"
+
+          # Depuración (apagada para achicar tamaño)
+          scripts/config --disable CONFIG_DEBUG_INFO
+          scripts/config --disable CONFIG_DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT
+          scripts/config --disable CONFIG_DEBUG_INFO_REDUCED
+          scripts/config --disable CONFIG_DEBUG_INFO_BTF
+          scripts/config --disable CONFIG_DEBUG_VM
+          scripts/config --disable CONFIG_DEBUG_KERNEL
+          scripts/config --disable CONFIG_PROVE_LOCKING
+          scripts/config --disable CONFIG_LOCK_STAT
+          scripts/config --disable CONFIG_LATENCYTOP
+
+          # Sin firma de módulos (no tenemos claves dentro del runner)
+          scripts/config --disable CONFIG_MODULE_SIG
+          scripts/config --disable CONFIG_MODULE_SIG_ALL
+          scripts/config --set-str CONFIG_SYSTEM_TRUSTED_KEYS ""
+          scripts/config --set-str CONFIG_SYSTEM_REVOCATION_KEYS ""
+
+          # Cosas útiles para ISO live
+          scripts/config -e CONFIG_OVERLAY_FS
+          scripts/config -e CONFIG_SQUASHFS
+          scripts/config -e CONFIG_SQUASHFS_XZ
+          scripts/config -e CONFIG_SQUASHFS_LZ4
+          scripts/config -e CONFIG_SQUASHFS_ZSTD
+          scripts/config -e CONFIG_BLK_DEV_LOOP
+          scripts/config -e CONFIG_ISO9660_FS
+          scripts/config -e CONFIG_UDF_FS
+          scripts/config -e CONFIG_TMPFS
+          scripts/config -e CONFIG_TMPFS_XATTR
+
+          # CGROUPS / DMEM (lo tenías en tu ejemplo original)
+          scripts/config -e CONFIG_CGROUPS
+          scripts/config -e CONFIG_CGROUP_DMEM
+
+          make olddefconfig
+          cd ..
+
+      - name: 7. Compilar el kernel y módulos
+        run: |
+          cd linux-src
+          export KBUILD_BUILD_TIMESTAMP="$(date -u -d @0 +"%Y-%m-%d %H:%M:%S")"
+          export KBUILD_BUILD_USER=wtflinux
+          export KBUILD_BUILD_HOST=wtflinux
+          export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+
+          JOBS="$(nproc)"
+          JOBS_OVERRIDE="${{ github.event.inputs.jobs_override || '0' }}"
+          if [ "${JOBS_OVERRIDE}" != "0" ]; then
+            JOBS="${JOBS_OVERRIDE}"
+          elif [ "${JOBS}" -gt 12 ]; then
+            JOBS=12
+          fi
+
+          echo "Compilando con -j${JOBS}; log completo en ../build.log"
+
+          make -j"${JOBS}" prepare
+          set +e
+          make -j"${JOBS}" bzImage modules > ../build.log 2>&1
+          BUILD_STATUS=$?
+          tail -n 200 ../build.log
+          exit "${BUILD_STATUS}"
+
+      - name: 8. Subir logs de compilación
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cachy-kernel-build-log
+          path: build.log
+
+      - name: 9. Instalar kernel, módulos y headers
+        if: success()
+        run: |
+          cd linux-src
+          KERNEL_RELEASE="$(make kernelrelease)"
+          echo "KERNEL_RELEASE=${KERNEL_RELEASE}" >> "$GITHUB_ENV"
+          echo "KERNEL_RELEASE=${KERNEL_RELEASE}" > ../kernel-release.txt
+
+          make INSTALL_MOD_PATH="$GITHUB_WORKSPACE/modules" modules_install
+
+          mkdir -p "$GITHUB_WORKSPACE/pkg/boot"
+          cp arch/x86/boot/bzImage       "$GITHUB_WORKSPACE/pkg/boot/vmlinuz-${KERNEL_RELEASE}"
+          cp System.map                  "$GITHUB_WORKSPACE/pkg/boot/System.map-${KERNEL_RELEASE}"
+          cp .config                     "$GITHUB_WORKSPACE/pkg/boot/config-${KERNEL_RELEASE}"
+
+          mkdir -p "$GITHUB_WORKSPACE/pkg/lib/modules"
+          mv "$GITHUB_WORKSPACE/modules/lib/modules/${KERNEL_RELEASE}" \
+             "$GITHUB_WORKSPACE/pkg/lib/modules/"
+
+          HEADERS_DIR="$GITHUB_WORKSPACE/pkg/usr/src/linux-headers-${KERNEL_RELEASE}"
+          mkdir -p "$HEADERS_DIR/arch/x86"
+          cp Makefile .config Module.symvers System.map "$HEADERS_DIR/"
+          cp -a scripts include "$HEADERS_DIR/"
+          cp -a arch/x86/include "$HEADERS_DIR/arch/x86/"
+          cp arch/x86/Makefile "$HEADERS_DIR/arch/x86/" || true
+          if [ -f tools/objtool/objtool ]; then
+            mkdir -p "$HEADERS_DIR/tools/objtool"
+            cp tools/objtool/objtool "$HEADERS_DIR/tools/objtool/"
+          fi
+          find "$HEADERS_DIR/scripts" -type f -name '*.o' -delete
+
+          # Symlinks build/source dentro del módulo
+          cd "$GITHUB_WORKSPACE/pkg/lib/modules/${KERNEL_RELEASE}"
+          rm -f build source
+          ln -sf "/usr/src/linux-headers-${KERNEL_RELEASE}" build
+          ln -sf "/usr/src/linux-headers-${KERNEL_RELEASE}" source
+          cd "$GITHUB_WORKSPACE"
+
+      - name: 10. Empaquetar artefactos
+        if: success()
+        run: |
+          cd "$GITHUB_WORKSPACE/pkg"
+          tar -czf "../wtflinux-cachy-kernel-${KERNEL_RELEASE}.tar.gz" .
+          cd ..
+          ls -lh wtflinux-cachy-kernel-*.tar.gz kernel-release.txt
+
+      - name: 11. Subir artefacto del workflow
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wtflinux-cachy-kernel-${{ env.KERNEL_RELEASE }}
+          path: |
+            wtflinux-cachy-kernel-*.tar.gz
+            kernel-release.txt
+
+      - name: 12. Publicar release `kernel-<KVER>`
+        if: success()
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: kernel-${{ env.KERNEL_RELEASE }}
+          name: WtfLinux Cachy Kernel ${{ env.KERNEL_RELEASE }}
+          body: |
+            Kernel CachyOS (ref: ${{ env.KERNEL_REF }}) compilado para WtfLinux.
+
+            - `wtflinux-cachy-kernel-${{ env.KERNEL_RELEASE }}.tar.gz` contiene:
+              - `/boot/vmlinuz-${{ env.KERNEL_RELEASE }}`
+              - `/boot/System.map-${{ env.KERNEL_RELEASE }}`
+              - `/boot/config-${{ env.KERNEL_RELEASE }}`
+              - `/lib/modules/${{ env.KERNEL_RELEASE }}/`
+              - `/usr/src/linux-headers-${{ env.KERNEL_RELEASE }}/`
+            - `kernel-release.txt` contiene el `KERNEL_RELEASE` exacto.
+          files: |
+            wtflinux-cachy-kernel-*.tar.gz
+            kernel-release.txt

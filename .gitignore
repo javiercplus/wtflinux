@@ -1,0 +1,29 @@
+# Artefactos de build
+rootfs/
+isowork/
+out/
+kernel-pkg/
+soar-tmp/
+pkg/
+
+# Logs
+build.log
+*.log
+
+# Archivos sueltos
+*.tar.gz
+*.iso
+*.squashfs
+*.img
+kernel-release.txt
+.env
+
+# Editor
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

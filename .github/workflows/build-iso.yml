@@ -1,0 +1,202 @@
+# Construye la ISO de WtfLinux en dos variantes paralelas:
+#
+#   - pacman + systemd  (HF prefix: pacman-systemd)
+#   - xbps   + runit    (HF prefix: xbps-runit)
+#
+# Para cada variante:
+#   1. Descarga el último release del kernel Cachy compilado por build-kernel.yml
+#   2. Hace bootstrap de un rootfs con pacstrap (pacman) o xbps-install --root (xbps)
+#   3. Instala dentro del rootfs:
+#        - kernel (vmlinuz + módulos)
+#        - gestor de paquetes contrario opcional (arch-pacman o void-linux/xbps)
+#        - paquetes base: nano, grub, i3, lightdm, base-devel, htop, btop,
+#          ncdu, ripgrep, fd, NetworkManager, dhclient, wpa_supplicant,
+#          linux-firmware, intel-ucode, amd-ucode
+#        - soar (pkgforge/soar) bajado de su release binario
+#   4. Configura /etc/os-release con NAME=WtfLinux, ID=wtflinux
+#   5. Habilita servicios según el init: systemd (lightdm, NetworkManager)
+#      o runit (ln -s a /etc/runit/runsvdir/default)
+#   6. Genera initramfs (dracut en xbps, mkinitcpio en pacman)
+#   7. Empaqueta el rootfs como squashfs y monta la ISO con xorriso + grub
+#   8. Sube la ISO y su sha256 al dataset arepaconcafe/wtflinux de Hugging Face
+#
+# El workflow es `workflow_dispatch` (no se lanza solo). Necesita los secretos:
+#   - HF_TOKEN  (token de Hugging Face con permiso `write` sobre el dataset)
+
+name: Build WtfLinux ISO
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernel_tag:
+        description: 'Tag del release del kernel a usar (default: latest)'
+        required: false
+        default: 'latest'
+      upload_to_hf:
+        description: 'Subir la ISO final a Hugging Face'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  HF_REPO: arepaconcafe/wtflinux
+  BUILD_DATE: ${{ github.run_id }}
+
+jobs:
+  build-iso:
+    name: ${{ matrix.pkgmgr }} + ${{ matrix.init }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - pkgmgr: pacman
+            init: systemd
+            hf_prefix: pacman-systemd
+            container: archlinux:latest
+          - pkgmgr: xbps
+            init: runit
+            hf_prefix: xbps-runit
+            container: ghcr.io/void-linux/void-glibc-full:latest
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.container }}
+      options: --privileged
+
+    steps:
+      - name: 1. Checkout
+        uses: actions/checkout@v4
+
+      - name: 2. Exponer variables de entorno
+        run: |
+          {
+            echo "PKGMGR=${{ matrix.pkgmgr }}"
+            echo "INIT=${{ matrix.init }}"
+            echo "HF_PREFIX=${{ matrix.hf_prefix }}"
+            echo "ROOTFS=$GITHUB_WORKSPACE/rootfs"
+            echo "ISODIR=$GITHUB_WORKSPACE/isowork"
+            echo "OUTDIR=$GITHUB_WORKSPACE/out"
+            echo "WORKDIR=$GITHUB_WORKSPACE"
+          } >> "$GITHUB_ENV"
+          mkdir -p "$ROOTFS" "$ISODIR" "$OUTDIR"
+
+      # ─────────────────────────── PACMAN ────────────────────────────
+      - name: 3a. Bootstrap pacman (Arch) rootfs
+        if: matrix.pkgmgr == 'pacman'
+        run: bash scripts/lfs/00-bootstrap-pacman.sh
+
+      # ──────────────────────────── XBPS ────────────────────────────
+      - name: 3b. Bootstrap xbps (Void) rootfs
+        if: matrix.pkgmgr == 'xbps'
+        run: bash scripts/lfs/00-bootstrap-xbps.sh
+
+      # ─────────────────────────── KERNEL ───────────────────────────
+      - name: 4. Descargar kernel Cachy del último release
+        env:
+          KERNEL_TAG: ${{ inputs.kernel_tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/lfs/01-fetch-kernel.sh
+
+      - name: 5. Instalar kernel dentro del rootfs
+        run: bash scripts/lfs/02-install-kernel.sh
+
+      # ─────────────────── PAQUETES DEL SISTEMA ─────────────────────
+      - name: 6. Instalar paquetes base
+        run: bash scripts/lfs/04-install-packages.sh
+
+      - name: 7. Instalar soar (pkgforge)
+        run: bash scripts/lfs/install-soar.sh
+
+      # ─────────────────────── CONFIG DEL SISTEMA ───────────────────
+      - name: 8. Configurar sistema (os-release, hostname, locale, fstab)
+        run: bash scripts/lfs/05-config-system.sh
+
+      - name: 9. Configurar init (systemd o runit)
+        run: bash scripts/lfs/07-config-init.sh
+
+      - name: 10. Configurar i3wm + lightdm
+        run: bash scripts/lfs/08-config-desktop.sh
+
+      - name: 11. Configurar grub
+        run: bash scripts/lfs/06-config-grub.sh
+
+      - name: 12. Generar initramfs
+        run: bash scripts/lfs/09-mkinitramfs.sh
+
+      # ──────────────────────────── ISO ─────────────────────────────
+      - name: 13. Construir squashfs
+        run: bash scripts/lfs/10-mksquashfs.sh
+
+      - name: 14. Construir ISO
+        run: bash scripts/lfs/11-build-iso.sh
+
+      - name: 15. Calcular sha256
+        run: |
+          cd "$OUTDIR"
+          ISO=$(find . -name "WtfLinux-*.iso" | head -n1)
+          [ -z "$ISO" ] && { echo "No se generó ISO"; exit 1; }
+          sha256sum "$ISO" > "${ISO}.sha256.txt"
+          cp "${ISO}.sha256.txt" "${ISO}-sha256.txt"
+          echo "ISO_PATH=$OUTDIR/$ISO" >> "$GITHUB_ENV"
+          echo "ISO_NAME=$(basename $ISO)" >> "$GITHUB_ENV"
+          echo "SHA_PATH=$OUTDIR/${ISO}-sha256.txt" >> "$GITHUB_ENV"
+          ls -lh "$OUTDIR"
+
+      - name: 16. Subir ISO como artefacto
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WtfLinux-${{ matrix.pkgmgr }}-${{ github.run_id }}
+          path: |
+            ${{ env.OUTDIR }}/WtfLinux-*.iso
+            ${{ env.OUTDIR }}/WtfLinux-*.sha256.txt
+            ${{ env.OUTDIR }}/WtfLinux-*-sha256.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      # ─────────────────────── HUGGING FACE ─────────────────────────
+      - name: 17. Subir ISO a Hugging Face
+        if: ${{ inputs.upload_to_hf == 'true' && success() }}
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          DESKTOP: ${{ matrix.pkgmgr }}
+        run: |
+          pip install -q --break-system-packages huggingface_hub || pip install -q huggingface_hub
+
+          ISO_FILE="$ISO_PATH"
+          ISO_NAME="$ISO_NAME"
+          SHA_FILE="$SHA_PATH"
+
+          case "$DESKTOP" in
+            pacman) HF_NAME="${HF_PREFIX}-${ISO_NAME}" ;;
+            xbps)   HF_NAME="${HF_PREFIX}-${ISO_NAME}" ;;
+            *)      HF_NAME="$ISO_NAME" ;;
+          esac
+
+          echo "Subiendo $ISO_FILE  →  arepaconcafe/wtflinux/$HF_NAME"
+          hf upload "$HF_REPO" "$ISO_FILE" "$HF_NAME" \
+            --repo-type dataset --token "$HF_TOKEN"
+
+          echo "Subiendo $SHA_FILE  →  arepaconcafe/wtflinux/${ISO_NAME}-sha256.txt"
+          hf upload "$HF_REPO" "$SHA_FILE" "${ISO_NAME}-sha256.txt" \
+            --repo-type dataset --token "$HF_TOKEN"
+
+  summary:
+    needs: build-iso
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Resumen del build
+        run: |
+          echo "## WtfLinux ISO build" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Variante | Estado |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| pacman + systemd | ${{ needs.build-iso.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| xbps + runit     | ${{ needs.build-iso.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Descarga la ISO del job `build-iso (pacman + systemd)` o `build-iso (xbps + runit)`." >> "$GITHUB_STEP_SUMMARY"
