@@ -1,0 +1,88 @@
+# packages-pacman.list
+# Paquetes extra a instalar dentro del rootfs Arch via pacman -S --needed.
+# Comentarios con #. Líneas vacías se ignoran.
+#
+# El bootstrap ya instala: base base-devel linux-firmware intel-ucode amd-ucode
+# nano grub efibootmgr networkmanager dhclient wpa_supplicant iwd
+# i3 dmenu xorg-server xorg-xinit lightdm lightdm-gtk-greeter
+# htop btop ncdu ripgrep fd fastfetch git curl wget rsync
+# squashfs-tools xorriso mtools dosfstools dracut bash bash-completion
+# sudo openssh
+#
+# Esta lista completa con cosas útiles:
+
+# ── Editores y utilidades shell ──
+vim
+neovim
+less
+man-db
+man-pages
+texinfo
+which
+file
+
+# ── Networking extra ──
+network-manager-applet
+nm-connection-editor
+wireless_tools
+iw
+nmap
+bind-tools
+
+# ── Build tools extra ──
+gcc
+make
+cmake
+pkgconf
+autoconf
+automake
+libtool
+patch
+diffutils
+
+# ── Compresión extra ──
+zip
+unzip
+bzip2
+p7zip
+
+# ── Sistema ──
+pciutils
+usbutils
+lshw
+smartmontools
+lm_sensors
+acpi
+acpid
+
+# ── Display / X extras ──
+feh
+xterm
+rxvt-unicode
+arandr
+xorg-xrandr
+xorg-xbacklight
+xorg-setxkbmap
+xorg-xinput
+mesa
+vulkan-radeon
+vulkan-intel
+nvidia-dkms
+nvidia-utils
+
+# ── Audio ──
+pipewire
+pipewire-pulse
+pipewire-alsa
+pipewire-jack
+wireplumber
+pavucontrol
+
+# ── Apps básicas ──
+firefox
+mpv
+qutebrowser
+
+# ── CachyOS / Soporte性能 ──
+cachyos-rate-mirrors
+cachyos-hello

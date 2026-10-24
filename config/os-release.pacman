@@ -1,0 +1,15 @@
+NAME="WtfLinux"
+ID=wtflinux
+ID_LIKE=arch
+PRETTY_NAME="WtfLinux (pacman)"
+VERSION="rolling"
+VERSION_ID=rolling
+HOME_URL="https://github.com/wtflinux/wtflinux"
+DOCUMENTATION_URL="https://github.com/wtflinux/wtflinux#readme"
+SUPPORT_URL="https://github.com/wtflinux/wtflinux/issues"
+BUG_REPORT_URL="https://github.com/wtflinux/wtflinux/issues"
+ANSI_COLOR="0;35"
+LOGO="wtflinux"
+BUILD_ID="rolling-pacman-systemd"
+VARIANT="pacman-systemd"
+VARIANT_ID=pacman

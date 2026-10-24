@@ -1,0 +1,80 @@
+# packages-xbps.list
+# Paquetes extra a instalar dentro del rootfs Void via xbps-install.
+# Comentarios con #. Líneas vacías se ignoran.
+#
+# El bootstrap ya instala: base-system base-devel linux-firmware intel-ucode
+# amd-ucode nano grub grub-x86_64-efi efibootmgr NetworkManager dhclient
+# wpa_supplicant iwd i3 dmenu xorg xorg-input-drivers lightdm lightdm-gtk-greeter
+# htop btop ncdu ripgrep fd fastfetch git curl wget rsync tar xz gzip zstd lz4
+# unzip bash bash-completion sudo openssh dracut squashfs-tools xorriso mtools
+# dosfstools runit-void void-runit
+
+# ── Editores y utilidades shell ──
+vim
+neovim
+less
+man-db
+man-pages
+which
+file
+
+# ── Networking extra ──
+network-manager-applet
+nm-connection-editor
+wireless_tools
+iw
+nmap
+bind-utils
+
+# ── Build tools extra ──
+gcc
+make
+cmake
+pkg-config
+autoconf
+automake
+libtool
+patch
+diffutils
+
+# ── Compresión extra ──
+zip
+unzip
+bzip2
+p7zip
+
+# ── Sistema ──
+pciutils
+usbutils
+lshw
+smartmontools
+lm_sensors
+acpi
+acpid
+
+# ── Display / X extras ──
+feh
+xterm
+rxvt-unicode
+arandr
+xrandr
+xbacklight
+setxkbmap
+xinput
+mesa-dri
+vulkan-loader
+mesa-vulkan-radeon
+mesa-vulkan-intel
+
+# ── Audio ──
+pipewire
+pipewire-pulseaudio
+pipewire-alsa
+pipewire-jack
+wireplumber
+pavucontrol
+
+# ── Apps básicas ──
+firefox
+mpv
+qutebrowser

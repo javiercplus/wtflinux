@@ -1,0 +1,125 @@
+# ~/.config/i3/config — WtfLinux live default config
+# i3wm config minimalistica orientada a teclado.
+# Mod4 = Super.
+
+set $mod Mod4
+
+# ──────────── Fonts ────────────
+font pango:monospace 10
+
+# ──────────── Autostart ────────────
+exec --no-startup-id xset -b
+exec --no-startup-id xset s off
+exec --no-startup-id xset -dpms
+exec --no-startup-id feh --bg-scale /usr/share/wtflinux/wallpaper.png
+exec --no-startup-id nm-applet
+exec --no-startup-id pipewire
+exec --no-startup-id pipewire-pulse
+exec --no-startup-id wireplumber
+
+# ──────────── Modifiers ────────────
+floating_modifier $mod
+tiling_drag modifier titlebar
+
+# ──────────── Terminal ────────────
+bindsym $mod+Return exec i3-sensible-terminal
+bindsym $mod+Shift+q kill
+
+# ──────────── Launcher ────────────
+bindsym $mod+d exec --no-startup-id i3-dmenu-desktop \
+  --dmenu='dmenu -i -fn "monospace 11" -nb "#1e1e2e" -nf "#cdd6f4" -sb "#6c1f9e" -sf "#ffffff"'
+
+bindsym $mod+Shift+d exec --no-startup-id \
+  rofi -show drun || dmenu_run
+
+# ──────────── Focus (vim keys + arrows) ────────────
+bindsym $mod+h focus left
+bindsym $mod+j focus down
+bindsym $mod+k focus up
+bindsym $mod+l focus right
+bindsym $mod+Left  focus left
+bindsym $mod+Down  focus down
+bindsym $mod+Up    focus up
+bindsym $mod+Right focus right
+
+bindsym $mod+Shift+h move left
+bindsym $mod+Shift+j move down
+bindsym $mod+Shift+k move up
+bindsym $mod+Shift+l move right
+
+# ──────────── Splitting ────────────
+bindsym $mod+b split h
+bindsym $mod+v split v
+bindsym $mod+f fullscreen toggle
+bindsym $mod+Shift+space floating toggle
+bindsym $mod+space focus mode_toggle
+
+# ──────────── Layouts ────────────
+bindsym $mod+s layout stacking
+bindsym $mod+w layout tabbed
+bindsym $mod+e layout toggle split
+
+# ──────────── Workspaces ────────────
+set $ws1 "1: term"
+set $ws2 "2: web"
+set $ws3 "3: code"
+set $ws4 "4: misc"
+set $ws5 "5: chat"
+
+bindsym $mod+1 workspace $ws1
+bindsym $mod+2 workspace $ws2
+bindsym $mod+3 workspace $ws3
+bindsym $mod+4 workspace $ws4
+bindsym $mod+5 workspace $ws5
+
+bindsym $mod+Shift+1 move container to workspace $ws1
+bindsym $mod+Shift+2 move container to workspace $ws2
+bindsym $mod+Shift+3 move container to workspace $ws3
+bindsym $mod+Shift+4 move container to workspace $ws4
+bindsym $mod+Shift+5 move container to workspace $ws5
+
+# ──────────── Reload / exit ────────────
+bindsym $mod+Shift+c reload
+bindsym $mod+Shift+r restart
+bindsym $mod+Shift+e exec "i3-nagbar -t warning -m 'Salir de i3?' -b 'Sí, salir' 'i3-msg exit'"
+
+# ──────────── Resize ────────────
+bindsym $mod+r mode "resize"
+mode "resize" {
+  bindsym h resize shrink width 2 px
+  bindsym j resize grow height 2 px
+  bindsym k resize shrink height 2 px
+  bindsym l resize grow width 2 px
+  bindsym Left  resize shrink width 2 px
+  bindsym Down  resize grow height 2 px
+  bindsym Up    resize shrink height 2 px
+  bindsym Right resize grow width 2 px
+  bindsym Escape mode "default"
+  bindsym $mod+r mode "default"
+}
+
+# ──────────── Barra ────────────
+bar {
+  status_command i3status 2>/dev/null || i3blocks 2>/dev/null
+  position top
+  colors {
+    background #1e1e2e
+    statusline #cdd6f4
+    focused_workspace  #6c1f9e #6c1f9e #ffffff
+    active_workspace   #313244 #313244 #cdd6f4
+    inactive_workspace #1e1e2e #1e1e2e #a6adc8
+    urgent_workspace   #f38ba8 #f38ba8 #1e1e2e
+  }
+}
+
+# ──────────── Colores de borde ────────────
+client.focused          #6c1f9e #6c1f9e #ffffff #6c1f9e
+client.focused_inactive #313244 #313244 #cdd6f4 #313244
+client.unfocused        #1e1e2e #1e1e2e #a6adc8 #1e1e2e
+client.urgent           #f38ba8 #f38ba8 #1e1e2e #f38ba8
+
+# ──────────── Gaps (i3-wm 4.22+) ────────────
+gaps inner 8
+gaps outer 4
+smart_gaps on
+smart_borders on
