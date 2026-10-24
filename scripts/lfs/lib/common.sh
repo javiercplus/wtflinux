@@ -2,15 +2,26 @@
 # lib/common.sh — Funciones compartidas por todos los scripts LFS de WtfLinux.
 # Se carga con: source "$(dirname "$0")/lib/common.sh"
 
+# shellcheck disable=SC2034  # colores se usan en log/ok/warn/err
 set -Eeuo pipefail
 
 # ───────────────────────── Colores / log ──────────────────────────
 if [ -t 1 ]; then
-  C_RED='\033[0;31m'; C_GRN='\033[0;32m'; C_YEL='\033[1;33m'
-  C_BLU='\033[0;34m'; C_CYA='\033[0;36m'; C_RST='\033[0m'
+  C_RED='\033[0;31m'
+  C_GRN='\033[0;32m'
+  C_YEL='\033[1;33m'
+  C_BLU='\033[0;34m'
+  C_CYA='\033[0;36m'
+  C_RST='\033[0m'
 else
-  C_RED=''; C_GRN=''; C_YEL=''; C_BLU=''; C_CYA=''; C_RST=''
+  C_RED=''
+  C_GRN=''
+  C_YEL=''
+  C_BLU=''
+  C_CYA=''
+  C_RST=''
 fi
+export C_RED C_GRN C_YEL C_BLU C_CYA C_RST
 
 log()  { printf "${C_BLU}[*]${C_RST} %s\n"  "$*"; }
 ok()   { printf "${C_GRN}[+]${C_RST} %s\n"  "$*"; }
@@ -62,7 +73,8 @@ enter_chroot() {
 chroot_run() {
   local script="$1"; shift
   local root="$ROOTFS"
-  local tmp="/tmp/wtflinux-$$-$(basename "$script")"
+  local tmp
+  tmp="/tmp/wtflinux-$$-$(basename "$script")"
   cp "$script" "$root/$tmp"
   chmod +x "$root/$tmp"
   enter_chroot "$root" "$tmp" "$@"

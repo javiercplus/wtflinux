@@ -10,8 +10,6 @@ source "$SCRIPT_DIR/lib/common.sh"
 KERNEL_RELEASE="$(cat "$ROOTFS/etc/wtflinux-kernel-release" 2>/dev/null || true)"
 [ -z "$KERNEL_RELEASE" ] && die "No se encontró KERNEL_RELEASE"
 
-VMLINUZ="vmlinuz-${KERNEL_RELEASE}"
-
 log "Generando initramfs para $KERNEL_RELEASE usando $PKGMGR"
 
 case "$PKGMGR" in

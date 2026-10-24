@@ -13,7 +13,19 @@ source "$SCRIPT_DIR/lib/common.sh"
 log "Bootstrap xbps rootfs en $ROOTFS"
 
 REPO="${XBPS_REPO:-https://repo-de.voidlinux.org/current}"
+export ARCH
 ARCH="$(host_arch)"
+
+# Paquete grub EFI dependiente de la arquitectura
+case "$ARCH" in
+  x86_64)  GRUB_EFI_PKG="grub-x86_64-efi" ;;
+  aarch64) GRUB_EFI_PKG="grub-arm64-efi"  ;;
+  *)
+    GRUB_EFI_PKG="grub-x86_64-efi"
+    warn "Arquitectura $ARCH no testeada; usando $GRUB_EFI_PKG"
+    ;;
+esac
+log "  arch=$ARCH  repo=$REPO  grub_efi_pkg=$GRUB_EFI_PKG"
 
 # 1. Confianza de claves: copiamos las keys de xbps del host al rootfs
 ensure_dir "$ROOTFS/var/db/xbps/keys"
@@ -34,7 +46,7 @@ log "xbps-install -S -R $REPO -r $ROOTFS base-system + paquetes"
 pkgs=(
   base-system base-devel
   linux-firmware intel-ucode amd-ucode
-  nano grub grub-x86_64-efi efibootmgr
+  nano grub "$GRUB_EFI_PKG" efibootmgr
   NetworkManager dhclient wpa_supplicant iwd
   i3 dmenu xorg xorg-input-drivers lightdm lightdm-gtk-greeter
   htop btop ncdu ripgrep fd fastfetch

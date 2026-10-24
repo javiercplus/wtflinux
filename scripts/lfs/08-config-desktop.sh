@@ -66,7 +66,7 @@ bar {
 EOF
 fi
 # skel → usuario anon
-if id -R "$ROOTFS" anon >/dev/null 2>&1 || [ -d "$ROOTFS/home/anon" ]; then
+if [ -d "$ROOTFS/home/anon" ]; then
   ensure_dir "$ROOTFS/home/anon/.config/i3"
   cp "$I3_DIR/config" "$ROOTFS/home/anon/.config/i3/config"
   chown -R 1000:1000 "$ROOTFS/home/anon/.config" 2>/dev/null || true

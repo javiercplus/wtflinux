@@ -10,7 +10,7 @@
 
 ---
 
-## Características
+## ✨ Características
 
 | Variante | Gestor | Init | Bootstrap | HF prefix |
 |----------|--------|------|-----------|-----------|
@@ -28,7 +28,7 @@
 - **ISO híbrida** (BIOS + EFI) con grub-mkrescue + xorriso.
 - **Upload automático** al dataset `arepaconcafe/wtflinux` de Hugging Face.
 
-## Estructura del repo
+## 🗂 Estructura del repo
 
 ```
 wtflinux/
@@ -63,7 +63,7 @@ wtflinux/
     └── mkinitcpio/mkinitcpio.conf
 ```
 
-## Uso
+## 🚀 Uso
 
 ### 1. Configurar secretos
 
@@ -108,7 +108,7 @@ sudo dd if=WtfLinux-xbps-runit-*.iso of=/dev/sdX bs=4M status=progress oflag=syn
 
 Login live: **`anon` / `anon`** (sudo sin password) o **`root` / `root`**.
 
-## Cómo funciona la build
+## 🧱 Cómo funciona la build
 
 ```
 ┌──────────────────────┐        ┌───────────────────────────┐
@@ -138,7 +138,7 @@ Login live: **`anon` / `anon`** (sudo sin password) o **`root` / `root`**.
                                  └─────────────────────────────┘
 ```
 
-##  Personalización rápida
+## 🔧 Personalización rápida
 
 - **Listas de paquetes**: edita `config/packages-pacman.list` y
   `config/packages-xbps.list`. Una línea por paquete, `#` para comentarios.
@@ -152,7 +152,7 @@ Login live: **`anon` / `anon`** (sudo sin password) o **`root` / `root`**.
 - **Repos xbps**: cambia `XBPS_REPO` en `00-bootstrap-xbps.sh` para usar otro
   mirror (default `https://repo-de.voidlinux.org/current`).
 
-## ⚠ Limitaciones conocidas
+## ⚠️ Limitaciones conocidas
 
 - La ISO live **NO persiste** cambios entre reinicios. Para persistencia real,
   instala WtfLinux a disco con `pacstrap` o `void-installer` desde el live.
@@ -164,13 +164,13 @@ Login live: **`anon` / `anon`** (sudo sin password) o **`root` / `root`**.
   - `build-kernel.yml`: 60–90 min (depende del `-jN` del runner)
   - `build-iso.yml`: 25–40 min por variante (corren en paralelo)
 
-##  Descarga directa
+## 📦 Descarga directa
 
 Las ISOs se publican en:
 - Hugging Face dataset: `https://huggingface.co/datasets/arepaconcafe/wtflinux`
 - GitHub Releases del kernel: `https://github.com/<tu-usuario>/<tu-repo>/releases`
 
-##  Créditos <3
+## 🤝 Créditos
 
 - Kernel: [CachyOS/linux-cachyos](https://github.com/CachyOS/linux-cachyos)
 - Bootstrap pacman: [archlinux](https://archlinux.org/) + pacstrap
