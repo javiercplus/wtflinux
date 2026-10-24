@@ -65,10 +65,12 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ${{ matrix.container }}
-      # --privileged: necesario para mount, chroot y mknod dentro del container
-      # --network=host: evita problemas de DNS a internet (pacman/xbps
-      #   necesitan bajar paquetes desde el host runner).
-      options: --privileged --network=host
+      # --privileged: necesario para mount, chroot y mknod dentro del container.
+      # NO usar --network=host: GHA crea su propia red Docker para el container
+      # y Docker rechaza "conflicting options: cannot attach both user-defined
+      # and non-user-defined network-modes". El DNS se resuelve dentro del
+      # propio step 2 con /etc/resolv.conf.
+      options: --privileged
 
     # Variables disponibles en TODOS los steps del job (incluido el actual).
     # Usamos /wtflinux (path absoluto y predecible dentro del container) en
@@ -92,13 +94,33 @@ jobs:
         run: |
           set -eux
           mkdir -p /wtflinux
+
+          # GHA debería inyectar DNS del host en /etc/resolv.conf, pero en
+          # containers Void/Arch a veces viene vacío o sin permisos de escritura.
+          # Lo forzamos con DNS públicos para que pacman/xbps puedan resolver.
+          if ! grep -q '^nameserver' /etc/resolv.conf 2>/dev/null; then
+            echo "nameserver 1.1.1.1"  > /etc/resolv.conf
+            echo "nameserver 8.8.8.8" >> /etc/resolv.conf
+            echo "nameserver 2606:4700:4700::1111" >> /etc/resolv.conf
+          fi
+
+          echo "── Variables de entorno ──"
           echo "PKGMGR=$PKGMGR"
           echo "INIT=$INIT"
+          echo "HF_PREFIX=$HF_PREFIX"
           echo "WORKDIR=$WORKDIR"
           echo "ROOTFS=$ROOTFS"
           echo "ISODIR=$ISODIR"
           echo "OUTDIR=$OUTDIR"
           echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          echo ""
+          echo "── Sanity check de red ──"
+          cat /etc/resolv.conf || true
+          echo ""
+          getent hosts repo-de.voidlinux.org 2>&1 | head -1 \
+            || getent hosts geo.mirror.pkgbuild.com 2>&1 | head -1 \
+            || warn "DNS no resuelve — revisa /etc/resolv.conf"
+
           mkdir -p "$ROOTFS" "$ISODIR" "$OUTDIR"
           ls -la /wtflinux
           df -h /wtflinux || true
