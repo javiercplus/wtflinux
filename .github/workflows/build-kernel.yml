@@ -49,26 +49,43 @@ jobs:
 
       - name: 3. Obtener fuentes del kernel + parches y config de CachyOS
         run: |
-          # Config base y PKGBUILD de CachyOS
+          set -euo pipefail
           git clone --depth 1 --branch "${KERNEL_REF}" \
             https://github.com/CachyOS/linux-cachyos.git cachy-pkg
 
-          # Kernel upstream (la versión debe coincidir con la del PKGBUILD)
-          KVER="${KERNEL_VERSION}"          # p.ej. 6.x.y
-          KMAJOR="${KVER%.*}"               # p.ej. 6.x
-          wget -q "https://cdn.kernel.org/pub/linux/kernel/v${KVER%%.*}.x/linux-${KVER}.tar.xz"
+          # Localiza el PKGBUILD y muéstralo para depurar
+          PKGBUILD="$(find cachy-pkg -maxdepth 2 -name PKGBUILD -path '*linux-cachyos/PKGBUILD' | head -n1)"
+          [ -n "$PKGBUILD" ] || { echo "No hay PKGBUILD"; find cachy-pkg -maxdepth 2; exit 1; }
+          echo "PKGBUILD: $PKGBUILD"
+          grep -nE '^(_major|_minor|pkgver)=' "$PKGBUILD"
+
+          MAJOR="$(sed -n 's/^_major=//p' "$PKGBUILD" | head -n1 | tr -d "\"'")"
+          MINOR="$(sed -n 's/^_minor=//p' "$PKGBUILD" | head -n1 | tr -d "\"'")"
+          [ -n "$MAJOR" ] || { echo "No pude leer _major"; exit 1; }
+
+          # Si _minor es 0 o está vacío, el tarball es linux-X.Y.tar.xz
+          if [ -z "$MINOR" ] || [ "$MINOR" = "0" ]; then KVER="$MAJOR"; else KVER="$MAJOR.$MINOR"; fi
+          echo "KVER=$KVER"
+          echo "KVER=$KVER" >> "$GITHUB_ENV"
+
+          curl -fSL -o "linux-${KVER}.tar.xz" \
+            "https://cdn.kernel.org/pub/linux/kernel/v${KVER%%.*}.x/linux-${KVER}.tar.xz"
           tar -xf "linux-${KVER}.tar.xz"
           mv "linux-${KVER}" linux-src
 
-          # Parches de CachyOS
           git clone --depth 1 https://github.com/CachyOS/kernel-patches.git cachy-patches
+          ls cachy-patches
+          ls "cachy-patches/${MAJOR}" || { echo "No hay parches para ${MAJOR}"; exit 1; }
+
           cd linux-src
-          patch -p1 --batch < "../cachy-patches/${KMAJOR}/all/0001-cachyos-base-all.patch"
+          patch -p1 --batch < "../cachy-patches/${MAJOR}/all/0001-cachyos-base-all.patch"
           sed -i 's/^EXTRAVERSION =.*/EXTRAVERSION =/' Makefile
 
       - name: 4. Aplicar config de CachyOS
         run: |
-          cp cachy-pkg/linux-cachyos/config linux-src/.config
+          CFG="$(find cachy-pkg -maxdepth 3 -type f -name config | head -n1)"
+          [ -n "$CFG" ] || { echo "No hay config"; exit 1; }
+          cp "$CFG" linux-src/.config
 
       - name: 5. Aplicar parche de Void (fixdep-largefile)
         run: |
