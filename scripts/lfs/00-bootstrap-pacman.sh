@@ -94,8 +94,8 @@ pkgs=(
 # -c: usa cache del host (más rápido), --needed: ignora paquetes ya instalados.
 # Pasamos < /dev/null para que pacstrap no espere input interactivo en
 # grupos (no hay grupos ahora, pero por si acaso).
-pacstrap -K -M -c --needed "$ROOTFS" "${pkgs[@]}" < /dev/null 2>&1 | tail -n 80
-
+pacstrap -K -M -c "$ROOTFS" "${pkgs[@]}" < /dev/null 2>&1 | tail -n 80
+cp /etc/pacman.d/mirrorlist "$ROOTFS/etc/pacman.d/mirrorlist"
 # 5. Generar fstab mínimo (no es root real, es squashfs; pero algo hay que poner)
 cat > "$ROOTFS/etc/fstab" <<'EOF'
 # WtfLinux live ISO — fstab generado en build-time
