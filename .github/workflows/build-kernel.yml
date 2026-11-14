@@ -47,29 +47,28 @@ jobs:
         with:
           path: repo
 
-      - name: 3. Clonar fuentes del kernel CachyOS
+      - name: 3. Obtener fuentes del kernel + parches y config de CachyOS
         run: |
+          # Config base y PKGBUILD de CachyOS
           git clone --depth 1 --branch "${KERNEL_REF}" \
-            https://github.com/CachyOS/linux-cachyos.git linux-src
+            https://github.com/CachyOS/linux-cachyos.git cachy-pkg
+
+          # Kernel upstream (la versión debe coincidir con la del PKGBUILD)
+          KVER="${KERNEL_VERSION}"          # p.ej. 6.x.y
+          KMAJOR="${KVER%.*}"               # p.ej. 6.x
+          wget -q "https://cdn.kernel.org/pub/linux/kernel/v${KVER%%.*}.x/linux-${KVER}.tar.xz"
+          tar -xf "linux-${KVER}.tar.xz"
+          mv "linux-${KVER}" linux-src
+
+          # Parches de CachyOS
+          git clone --depth 1 https://github.com/CachyOS/kernel-patches.git cachy-patches
           cd linux-src
-          # CachyOS ya deja EXTRAVERSION = -cachy en el Makefile; lo
-          # forzamos para que el kernelrelease sea determinista.
-          sed -i 's/^EXTRAVERSION =.*/EXTRAVERSION = -cachy/' Makefile
-          cd ..
+          patch -p1 --batch < "../cachy-patches/${KMAJOR}/all/0001-cachyos-base-all.patch"
+          sed -i 's/^EXTRAVERSION =.*/EXTRAVERSION =/' Makefile
 
       - name: 4. Aplicar config de CachyOS
         run: |
-          cd linux-src
-          # El repo de CachyOS trae linux-cachyos/config como dotconfig base
-          if [ -f linux-cachyos/config ]; then
-            cp linux-cachyos/config .config
-          elif [ -f .config.cachyos ]; then
-            cp .config.cachyos .config
-          else
-            echo "ERROR: no se encontró el .config base de CachyOS" >&2
-            exit 1
-          fi
-          cd ..
+          cp cachy-pkg/linux-cachyos/config linux-src/.config
 
       - name: 5. Aplicar parche de Void (fixdep-largefile)
         run: |
