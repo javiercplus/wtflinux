@@ -152,7 +152,7 @@ jobs:
           xbps-install -Syu xbps || true
 
           # Instalar bash
-          xbps-install -Sy bash
+          xbps-install -Sy bash curl wget tar
 
           echo "bash instalado:"
           bash --version | head -1
